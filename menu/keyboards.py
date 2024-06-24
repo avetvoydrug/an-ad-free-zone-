@@ -9,6 +9,27 @@ main = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text='Най�
                                      [InlineKeyboardButton(text='По рекламе', callback_data='ads')]],
                            resize_keyboard=True,
                            input_field_placeholder='Выберите пункт меню...')
+
+
+####################ADMIN_KEYBOARDS#####################
+
+
+admin = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text='Добавить существующий', callback_data='add_admin'),
+         InlineKeyboardButton(text='Добавить новый', callback_data='add_new_admin'),
+         InlineKeyboardButton(text='Получить код серии', callback_data='get_code_serie_admin')],
+        [InlineKeyboardButton(text='Удалить серию', callback_data='delete_admin'),
+         InlineKeyboardButton(text='Удалить полностью', callback_data='delete_full_admin'),
+         InlineKeyboardButton(text='Исправить ленту', callback_data='change_film_admin')],
+        [InlineKeyboardButton(text='Узнать file_ID', callback_data='file_id_admin'),
+         InlineKeyboardButton(text='Получить последний код', callback_data='get_code_admin'),
+         InlineKeyboardButton(text='Отправить рассылку', callback_data='send_admin')],
+        [InlineKeyboardButton(text='Выдать админку', callback_data='set_admin')]
+    ]
+)
+
+
 ####################ADS_KEYBOARDS#####################
 
 send_link = ReplyKeyboardMarkup(
