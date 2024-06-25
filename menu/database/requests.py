@@ -1,6 +1,6 @@
 from menu.database.models import async_session
 from menu.database.models import Subscription, Film, Serie, User
-from sqlalchemy import select, update, func, delete
+from sqlalchemy import select, update, func, delete, distinct
 
 ####################SUB_REQUEST#####################
 
@@ -11,15 +11,23 @@ async def get_subscription():
 
 ####################Films/Series_requests#####################
 
-async def get_series(code):
+async def get_series(code, season=1):
     try:
         async with async_session() as session:
-            series = await session.scalars(select(Serie).where(Serie.films_id == code))
+            series = await session.scalars(select(Serie).where(
+                Serie.films_id == code,
+                Serie.season == season))
             if series: return series
             else:
                 return False
     except Exception:
         print('get_series')
+
+async def get_seasons(code):
+    async with async_session() as session:
+        seasons = await session.execute(select(distinct(Serie.season)).where(Serie.films_id == code))
+        if seasons: return seasons
+        else: return 1
 
 async def get_film(code):
     async with async_session() as session:

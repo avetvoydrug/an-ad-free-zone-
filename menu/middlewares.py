@@ -4,7 +4,7 @@ from aiogram.types import Message, TelegramObject
 from aiogram.exceptions import TelegramRetryAfter
 from typing import Callable, Dict, Any, Awaitable
 
-from menu.database.requests import check_status
+from menu.database.requests import check_status, set_user
 
 class AntiSpamMiddleware(BaseMiddleware):
     """
@@ -47,6 +47,8 @@ class AntiSpamMiddleware(BaseMiddleware):
         """
         
         user_id = message.from_user.id
+        if message.text == '/start':
+            await set_user(user_id)
         flag = await check_status(user_id)
         if not flag:
             # Проверка, отправлял ли пользователь сообщения ранее

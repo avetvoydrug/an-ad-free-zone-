@@ -1,8 +1,16 @@
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
+####################SEARCH_STATES#####################
+
 class Search(StatesGroup):
     code = State()
+
+class ChooseSeason(StatesGroup):
+    code = State()
+    season = State()
+
+####################ADS_STATES#####################
 
 class Call_us(StatesGroup):
     tg_dog_link = State()

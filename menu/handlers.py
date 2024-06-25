@@ -2,13 +2,13 @@ import os
 from dotenv import load_dotenv
 from aiogram import F, Router
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, ContentType, CallbackQuery
+from aiogram.types import Message, ContentType, CallbackQuery, ReplyKeyboardRemove
 
 from aiogram.fsm.context import FSMContext
 from menu.states import (Search, Call_us, Video_id, 
                          Film, Serie, MakeAdmin, GetSerie,
                          DeleteSerie, DeleteFilm, UpdateFilm,
-                         SendMail)
+                         SendMail, ChooseSeason)
 
 import menu.keyboards as kb
 from menu.tg_api import is_sub
@@ -20,14 +20,15 @@ from menu.middlewares import AntiSpamMiddleware
 
 router = Router()
 load_dotenv()
-router.message.middleware(AntiSpamMiddleware(limit=2, cooldown=5))
-
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     await set_user(message.from_user.id)
     #припилить видос с гайдом к приветственному месседжу
-    await message.answer('Приветствуем Вас в зоне без рекламы ;)', reply_markup=kb.main)
+    await message.answer('Приветствуем Вас в зоне без рекламы 🍟👋', reply_markup=kb.main)
+
+router.message.middleware(AntiSpamMiddleware(limit=5, cooldown=5))
+
 
 ####################ADMIN_HANDLERS#####################
 
@@ -232,11 +233,14 @@ async def send_mails_finally(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == 'to_main')
 async def to_main(callback: CallbackQuery):
-    await callback.message.edit_text('Приветствуем Вас в зоне без рекламы ;)', reply_markup=kb.main)
+    await callback.message.edit_text('Приветствуем Вас в зоне без рекламы 🙆‍♂️', reply_markup=kb.main)
 
 @router.callback_query(F.data == 'to_main_wo_edit')
 async def to_main(callback: CallbackQuery):
-    await callback.message.answer('Приветствуем Вас в зоне без рекламы ;)', reply_markup=kb.main)
+    sent_message = await callback.message.answer('1', reply_markup=ReplyKeyboardRemove())
+    from main import bot
+    await bot.delete_message(chat_id=callback.message.chat.id, message_id=sent_message.message_id)
+    await callback.message.answer('Приветствуем Вас в зоне без рекламы 🙆‍♂️', reply_markup=kb.main)
 
 @router.message(F.content_type == ContentType.VIDEO)
 async def video_file(message: Message):
@@ -251,11 +255,11 @@ async def movie_finder_first_step(callback: CallbackQuery, state: FSMContext):
     if st:
         await state.set_state(Search.code)
         await callback.message.edit_text(
-            text='input films code'
+            text='Введите код фильма💬'
         )
     else:
         await callback.message.edit_text(
-            text='u need to sub a channel',
+            text='Подпишитесь на несколько каналов 📱;)',
             reply_markup= await kb.subscriptions()
         )
 
@@ -274,17 +278,17 @@ async def search(message: Message, state: FSMContext):
                     first = series.first()
                     await message.answer_video(
                         video=f'{first.tg_file_id}',
-                        caption=f'Вы смотрите {film.name}',
+                        caption=f'Вы смотрите 🍕 {film.name}',
                         reply_markup= await kb.series(code_film)
                         )
                 else:
                     await state.clear()
                     await state.set_state(Search.code)
-                    await message.answer('Такого кода не существует\nВведите корректно ;)')
+                    await message.answer('Такого кода не существует⛄️\nВведите корректно ;)')
             else:
                 await state.clear()
                 await state.set_state(Search.code)
-                await message.answer('Такого кода не существует\nВведите корректно ;)')
+                await message.answer('Такого кода не существует⛄️\nВведите корректно ;)')
         except Exception:
             await message.answer(f'{message.from_user.first_name}, код должен состоять только из цифр\nВы ввели: {data["code"]}\nПовторите ввод корректно :)')
             await state.clear()
@@ -292,7 +296,7 @@ async def search(message: Message, state: FSMContext):
             print(f'Дебил пытался наебать систему')
     else:
         message.answer(
-            text='u need to sub a channel :)',
+            text='Подпишитесь на несколько каналов 📱;)',
             reply_markup= await kb.subscriptions()
         )
 
@@ -303,34 +307,68 @@ async def next_serie(callback: CallbackQuery):
         # 'season_{code}_{serie.season}_{serie.part}'
         data = callback.data.split('_')
         film = await get_film(int(data[1]))
-        series = await get_series(int(data[1]))
+        series = await get_series(int(data[1]), int(data[2]))
         target_serie = next(
             (s for s in series if s.season == int(data[2]) and s.part == int(data[3])), 
             None)
         await callback.message.answer_video(
             video=f'{target_serie.tg_file_id}',
-            caption=f'Вы смотрите {film.name}',
+            caption=f'Вы смотрите 🍕 {film.name}',
             reply_markup= await kb.series(int(data[1]))
         )
     else:
         # zatestit
         await callback.message.answer(
-            text='u need to sub a channel :)',
+            text='Подпишитесь на несколько каналов 📱;)',
             reply_markup= await kb.subscriptions()
         )
+
+@router.callback_query(F.data.startswith('choose_season_'))
+async def get_season_start(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(ChooseSeason.code)
+    data = callback.data.split('_')
+    #choose_season_{code}
+    await state.update_data(code=int(data[2]))
+    await state.set_state(ChooseSeason.season)
+    await callback.message.answer('Выберите сезон из представленных на клавиатуре⌨️', 
+                                  reply_markup= await kb.seasons(int(data[2])))
+
+@router.message(ChooseSeason.season)
+async def get_season_finally(message: Message, state: FSMContext):
+    await state.update_data(season=message.text)
+    data = await state.get_data()
+    series = await get_series(int(data["code"]), int(data["season"]))
+    film = await get_film(int(data["code"]))
+    if film and series:
+                    first = series.first()
+                    sent_message = await message.answer('Отлично', reply_markup=ReplyKeyboardRemove())
+                    await message.answer_video(
+                        video=f'{first.tg_file_id}',
+                        caption=f'Вы смотрите {film.name}',
+                        reply_markup= await kb.series(int(data['code']), int(data['season']))
+                        )
+                    from main import bot
+                    await bot.delete_message(chat_id=message.chat.id, message_id=sent_message.message_id)
+
 
 ####################ADS_HANDLERS#####################
 
 @router.callback_query(F.data.in_({'ads', 'change'}))
 async def call(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Call_us.tg_dog_link)
-    await callback.message.answer('Выберите контакт для связи, с помощью кнопки', reply_markup= kb.send_link)
+    await callback.message.answer('Выберите контакт для связи, с помощью кнопки📧', reply_markup= kb.send_link)
 
 @router.message(Call_us.tg_dog_link)
 async def call_text(message:Message, state: FSMContext):
-    await state.update_data(tg_dog_link=message.user_shared)
+    sent_message = await message.answer('Отлично', reply_markup=ReplyKeyboardRemove())
+    from main import bot
+    await bot.delete_message(chat_id=message.chat.id, message_id=sent_message.message_id)
+    if message.user_shared is not None:
+        await state.update_data(tg_dog_link=message.user_shared)
+    else:
+        await state.update_data(tg_dog_link=message.text)
     await state.set_state(Call_us.text)
-    await message.answer('Введите текст Вашего сообщения')
+    await message.answer('Введите текст Вашего сообщения ⌨️✍️')
     
 @router.message(Call_us.text)
 async def call_check(message: Message, state: FSMContext):
@@ -338,22 +376,40 @@ async def call_check(message: Message, state: FSMContext):
     await state.update_data(text=message.text)
     data = await state.get_data()
     user = data["tg_dog_link"]
-    username = await bot.get_chat(int(user.user_id))
-    await message.answer(f'Вот, что Вы ввели:\nАккаунт для связи: @{username.username}\nТекст сообщения: {data["text"]}')
-    await message.answer('Если всё верно нажмите отправить', reply_markup= kb.approve)
+    try:
+        username = await bot.get_chat(int(user.user_id))
+        await message.answer(f'Вот, что Вы ввели:✍️\nАккаунт для связи: @{username.username}\nТекст сообщения: {data["text"]}')
+        await message.answer('Если всё верно нажмите отправить📧', reply_markup= kb.approve)
+    except Exception:
+        try:
+            if user[0] != '@':
+                user = '@' + user
+            await message.answer(f'Вот, что Вы ввели:✍️\nАккаунт для связи: {user}\nТекст сообщения: {data["text"]}')
+            await message.answer('Если всё верно нажмите отправить📧', reply_markup= kb.approve)
+        except:
+            await state.clear()
+            await message.answer(f'Скорее всего Вы отправили аккаунт бота или скрытый аккаунт✍️',
+                                 reply_markup=kb.to_main)             
+    
 
 @router.callback_query(F.data == 'approve')
 async def call_end(callback: CallbackQuery, state: FSMContext):
     from main import bot
     data = await state.get_data()
     user = data["tg_dog_link"]
-    username = await bot.get_chat(int(user.user_id))
+    try:
+        username = await bot.get_chat(int(user.user_id))
+        send = username.username
+    except:
+        if user[0] == '@':
+            user = user[1:]
+        send = user
     # TG_ID - id админа или прочих
     await bot.send_message(
         chat_id=int(os.getenv('TG_ID')),
-        text=f'@{username.username}\n{data["text"]}')
+        text=f'@{send}\n{data["text"]}')
     await callback.message.edit_text(
-        text='Ваше сообщение успешно отправлено\nОжидайте обратной связи',
+        text='Ваше сообщение успешно отправлено📧\nОжидайте обратной связи🤝',
         reply_markup= kb.to_main
     )
 ####################SPAM_HANDLER#####################        
@@ -368,6 +424,6 @@ async def call_end(callback: CallbackQuery, state: FSMContext):
         }))
 async def say_any(message: Message):
     await message.answer(
-        text='Нет такого варианта ответа',
+        text='Нет такого варианта ответа🌧️',
         reply_markup= kb.to_main
     )
